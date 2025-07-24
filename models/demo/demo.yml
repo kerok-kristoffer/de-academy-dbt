@@ -61,4 +61,9 @@ sources:
     schema: PUBLIC
     tables:
       - name: BASE_ORDERS
+  - name: patient
+    database: DBT_DB
+    schema: PUBLIC
+    tables:
+      - name: PATIENT_SRC
   

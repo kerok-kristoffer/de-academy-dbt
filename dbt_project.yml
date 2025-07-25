@@ -40,3 +40,17 @@ models:
     # Applies to all files under models/example/
     example:
       +materialized: table
+    project1:
+      bronze:
+        database: PROJECT1_DB
+        schema: BRONZE
+      silver:
+        database: PROJECT1_DB
+        schema: SILVER
+    project2:
+      raw:
+        database: PROJECT2_DB
+        schema: RAW
+      mart:
+        database: PROJECT2_DB
+        schema: MART

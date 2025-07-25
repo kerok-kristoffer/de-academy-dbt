@@ -27,7 +27,7 @@ models:
     description: "DBT Model for the purchase table"
   - name: clean_orders
     description: "DBT Model for the clean Orders"
-  - name: final_order
+  - name: final_orders
     description: "DBT Model for the final orders"
   - name: concat_address
     description: "DBT model for the address concat"

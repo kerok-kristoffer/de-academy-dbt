@@ -63,13 +63,25 @@ sources:
   - name: orders
     database: DBT_DB
     schema: PUBLIC
+    # freshness: # excludes non 'fresh' entries? - need to specify a timestamp column - can be placed on schema or table level
+    #   error_after:
+    #     count: 2
+    #     period: day
+    #   warn_after:
+    #     count: 1
+    #     period: day
+      
     tables:
       - name: BASE_ORDERS
+      # - name: SOME_OTHER_TABLE
+      #   freshness: null # deactivates a schema level freshness tag for a table
+      
   - name: patient
     database: DBT_DB
     schema: PUBLIC
     tables:
       - name: PATIENT_SRC
+        identifier: patient_source_table
   - name: country
     database: DBT_DB
     schema: PUBLIC

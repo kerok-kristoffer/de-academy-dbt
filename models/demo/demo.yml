@@ -38,6 +38,7 @@ models:
 
 sources:
   - name: employee
+    description: "Raw employee data"
     database: DBT_DB
     schema: PUBLIC
     tables:
@@ -47,6 +48,9 @@ sources:
     schema: PUBLIC
     tables:
       - name: CUSTOMER_SRC
+        columns:
+          - name: CUSTOMER_ID 
+            description: "primary key"
   - name: sales
     database: DBT_DB
     schema: PUBLIC

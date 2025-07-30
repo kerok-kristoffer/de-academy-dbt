@@ -2,9 +2,10 @@ version: 2
 
 models:
   - name: employee
-    description: "DBT Model for employee table"
+    description: "{{ doc('employee') }}"
     columns:
       - name: emp_id
+        description: primary key
         tests:
           - unique
           - not_null
@@ -13,6 +14,7 @@ models:
               config:
                 severity: warn
       - name: emp_salary
+        description: current salary of employee
         tests:
           - value_check
   - name: customer

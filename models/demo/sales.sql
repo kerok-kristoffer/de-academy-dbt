@@ -17,9 +17,8 @@ with sales_src as
     CURRENT_TIMESTAMP AS INSERT_DTS
     FROM {{ source('sales', 'SALES_SRC') }}
 
-    {% if is_incremental() %}
+    {%- if is_incremental() -%}
         WHERE CREATED_AT > (SELECT MAX(INSERT_DTS) FROM {{this}})
-
-    {% endif %}
+    {%- endif -%}
 )
 SELECT * FROM sales_src

@@ -54,3 +54,8 @@ models:
       mart:
         database: PROJECT2_DB
         schema: MART
+
+vars:
+  target_db: GLUEDB
+  target_schema: PUBLIC
+  stage_name: GLUEDB.PUBLIC.GLUE_S3_STAGE

@@ -1,0 +1,153 @@
+-- optional: create a schema
+-- CREATE SCHEMA social;
+
+CREATE OR REPLACE TABLE users (
+  user_id     NUMBER        PRIMARY KEY,   -- not enforced; good for documentation
+  handle      STRING UNIQUE NOT NULL,
+  created_at  TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE OR REPLACE TABLE follows (
+  follower_id NUMBER NOT NULL REFERENCES users(user_id),
+  followee_id NUMBER NOT NULL REFERENCES users(user_id),
+  created_at  TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+  CONSTRAINT pk_follows PRIMARY KEY (follower_id, followee_id)   -- declarative only
+);
+
+CREATE OR REPLACE TABLE posts (
+  post_id     NUMBER PRIMARY KEY,
+  user_id     NUMBER NOT NULL REFERENCES users(user_id),
+  created_at  TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE OR REPLACE TABLE comments (
+  comment_id  NUMBER PRIMARY KEY,
+  post_id     NUMBER NOT NULL REFERENCES posts(post_id),
+  user_id     NUMBER NOT NULL REFERENCES users(user_id),  -- commenter
+  created_at  TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+  text        STRING NOT NULL
+);
+
+-- Snowflake has no user-defined indexes. If needed later, consider CLUSTER BY
+-- on large tables to improve pruning, e.g.:
+-- ALTER TABLE follows CLUSTER BY (followee_id, follower_id);
+-- ALTER TABLE comments CLUSTER BY (post_id, created_at);
+
+
+
+
+
+CREATE OR REPLACE VIEW user_follower_counts_v AS
+SELECT
+  followee_id AS user_id,
+  COUNT(*)::NUMBER AS follower_count
+FROM follows
+GROUP BY followee_id;
+
+
+
+
+
+
+WITH
+recent_comments AS (
+  SELECT c.comment_id, c.post_id, c.user_id AS commenter_id, c.created_at, c.text
+  FROM comments c
+  WHERE c.created_at >= DATEADD('day', -7, CURRENT_TIMESTAMP())
+),
+
+commenter_followers AS (
+  SELECT followee_id AS user_id, COUNT(*)::NUMBER AS followers
+  FROM follows
+  GROUP BY followee_id
+),
+
+commenter_followings AS (
+  SELECT follower_id AS user_id, COUNT(*)::NUMBER AS followings
+  FROM follows
+  GROUP BY follower_id
+),
+
+-- Dedup by normalized text (lower/trim); MD5() returns BINARY in Snowflake—no need here.
+commenter_dups AS (
+  SELECT
+    commenter_id,
+    COUNT(*) AS total_comments,
+    COUNT(*) - COUNT(DISTINCT LOWER(TRIM(text))) AS duplicate_count
+  FROM recent_comments
+  GROUP BY commenter_id
+),
+
+commenter_24h AS (
+  SELECT commenter_id, COUNT(*) AS comments_24h
+  FROM recent_comments
+  WHERE created_at >= DATEADD('hour', -24, CURRENT_TIMESTAMP())
+  GROUP BY commenter_id
+),
+
+commenter_features AS (
+  SELECT
+    u.user_id AS commenter_id,
+    -- account age in days (fractional)
+    DATEDIFF('second', u.created_at, CURRENT_TIMESTAMP()) / 86400.0 AS account_age_days,
+    COALESCE(cf.followers, 0)   AS followers,
+    COALESCE(cg.followings, 0)  AS followings,
+    COALESCE(cd.total_comments, 0)   AS total_comments_7d,
+    COALESCE(cd.duplicate_count, 0)  AS duplicate_count_7d,
+    COALESCE(c24.comments_24h, 0)    AS comments_24h
+  FROM users u
+  LEFT JOIN commenter_followers cf ON cf.user_id = u.user_id
+  LEFT JOIN commenter_followings cg ON cg.user_id = u.user_id
+  LEFT JOIN commenter_dups cd       ON cd.commenter_id = u.user_id
+  LEFT JOIN commenter_24h  c24      ON c24.commenter_id = u.user_id
+  WHERE u.user_id IN (SELECT DISTINCT commenter_id FROM recent_comments)
+),
+
+scored_commenters AS (
+  SELECT
+    commenter_id,
+    account_age_days,
+    followers,
+    followings,
+    total_comments_7d,
+    duplicate_count_7d,
+    comments_24h,
+    (followers::FLOAT / NULLIF(followings + 1, 0)) AS ff_ratio,
+    (duplicate_count_7d::FLOAT / NULLIF(total_comments_7d, 1)) AS dup_rate,
+    LEAST(
+      1.0,
+      0.35 * IFF(account_age_days < 7, 1.0, 0.0)
+    + 0.25 * IFF(COALESCE(followers::FLOAT / NULLIF(followings + 1, 0), 0) < 0.2, 1.0, 0.0)
+    + 0.25 * COALESCE(duplicate_count_7d::FLOAT / NULLIF(total_comments_7d, 1), 0)
+    + 0.15 * CASE WHEN comments_24h >= 100 THEN 1.0
+                  WHEN comments_24h >= 30  THEN 0.5
+                  ELSE 0.0 END
+    ) AS bot_score
+  FROM commenter_features
+),
+
+botlike_commenters AS (
+  SELECT commenter_id, bot_score, (bot_score >= 0.60) AS is_botlike
+  FROM scored_commenters
+)
+
+SELECT
+  p.user_id                                  AS target_user_id,
+  u.handle                                   AS target_handle,
+  ufc.follower_count                         AS target_followers,
+  COUNT(*)                                   AS total_recent_comments,
+  SUM(IFF(bl.is_botlike, 1, 0))              AS botlike_comments,
+  ROUND(100.0 * SUM(IFF(bl.is_botlike, 1, 0))::FLOAT / NULLIF(COUNT(*), 0), 2) AS botlike_pct,
+  ROUND( (COALESCE(ufc.follower_count, 0)::FLOAT *
+          (SUM(IFF(bl.is_botlike, 1, 0))::FLOAT / NULLIF(COUNT(*), 0))) , 2)   AS impact_score
+FROM recent_comments rc
+JOIN posts p                 ON p.post_id = rc.post_id
+JOIN users u                 ON u.user_id = p.user_id
+LEFT JOIN user_follower_counts ufc ON ufc.user_id = p.user_id   -- or user_follower_counts_v
+JOIN botlike_commenters bl   ON bl.commenter_id = rc.user_id
+GROUP BY 1,2,3
+HAVING COUNT(*) >= 20
+ORDER BY impact_score DESC, botlike_pct DESC, target_followers DESC
+LIMIT 50;
+
+

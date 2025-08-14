@@ -1,0 +1,77 @@
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+
+CREATE OR REPLACE DATABASE PRODUCT_DB;
+CREATE OR REPLACE SCHEMA PRODUCT_DATA;
+
+CREATE OR REPLACE TABLE PRODUCT_DATA.PRODUCT_SRC(
+    product_id string,
+    product_name string,
+    category string,
+    price float,
+    stock_quantity float,
+    supplier string,
+    rating float
+);
+
+CREATE OR REPLACE TABLE PRODUCT_DATA.PRODUCT_TGT(
+    product_id string,
+    product_name string,
+    category string,
+    price float,
+    stock_quantity float,
+    supplier string,
+    rating float
+);
+
+-- create stream and task!
+USE SCHEMA PRODUCT_DATA;
+
+CREATE OR REPLACE STREAM product_stream ON TABLE product_src; -- detects inset, update, deletes on product_src
+SELECT * FROM product_stream;
+
+
+CREATE OR REPLACE TASK product_db.product_data.product_task
+    WAREHOUSE = COMPUTE_WH
+    SCHEDULE = '1 MINUTE'
+AS 
+MERGE INTO PRODUCT_DB.PRODUCT_DATA.PRODUCT_TGT AS tgt
+USING PRODUCT_DB.PRODUCT_DATA.product_stream AS src
+ON tgt.product_id = src.product_id
+WHEN MATCHED THEN
+  UPDATE SET 
+    tgt.product_name = src.product_name,
+    tgt.category = src.category,
+    tgt.price = src.price,
+    tgt.stock_quantity = src.stock_quantity,
+    tgt.supplier = src.supplier,
+    tgt.rating = src.rating
+WHEN NOT MATCHED THEN
+  INSERT (product_id, product_name, category, price, stock_quantity, supplier, rating)
+  VALUES (src.product_id, src.product_name, src.category, src.price, src.stock_quantity, src.supplier, src.rating);
+
+ALTER TASK PRODUCT_TASK RESUME;
+
+CREATE OR REPLACE STAGE PRODUCT_DB.PRODUCT_DATA.product_stage;
+
+LIST @PRODUCT_DATA.product_stage;
+
+-- imported full_data from stage to product_src
+
+SELECT * FROM PRODUCT_DATA.PRODUCT_TGT WHERE product_id = 'P001';
+
+-- imported change_data from stage to product_src
+
+
+
+SELECT * FROM PRODUCT_DB.PRODUCT_DATA.PRODUCT_STREAM;
+
+
+
+
+
+
+
+
+
+

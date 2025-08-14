@@ -1,0 +1,175 @@
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+
+CREATE OR REPLACE DATABASE EMPLOYEE_DATA;
+
+CREATE OR REPLACE SCHEMA RAW_DATA;
+CREATE OR REPLACE SCHEMA TRANSFORMED_DATA;
+
+USE SCHEMA RAW_DATA;
+CREATE OR REPLACE TABLE EMPLOYEE_RAW(
+    employee_id STRING,
+    first_name STRING,
+    last_name STRING,
+    department STRING,
+    salary DECIMAL(10,2),
+    hire_date DATE,
+    location STRING    
+);
+
+USE SCHEMA TRANSFORMED_DATA;
+CREATE OR REPLACE TABLE EMPLOYEE_TRANSFORMED(
+    employee_id STRING,
+    full_name STRING,
+    department STRING,
+    annual_salary DECIMAL(10,2),
+    hire_date DATE,
+    experience_level STRING,
+    tenure_days STRING,
+    state STRING,
+    country STRING,
+    bonus_eligibility STRING,
+    high_potential_flag STRING
+);
+
+USE SCHEMA RAW_DATA;
+
+list @%EMPLOYEE_RAW;
+list @~; -- listing by users
+
+CREATE OR REPLACE STAGE EMPLOYEE_STAGE;
+-- uploaded .csv to stage in stage view
+LIST @EMPLOYEE_STAGE;
+
+COPY INTO EMPLOYEE_RAW
+FROM @EMPLOYEE_STAGE
+file_format = (TYPE = 'CSV' SKIP_HEADER = 1);
+
+-- create a transform select statement and then add insert into transform_table using a with statement (CTE)
+INSERT INTO TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+SELECT employee_id, CONCAT(FIRST_NAME, ' ', LAST_NAME) AS full_name, department,
+    (SALARY * 12)::FLOAT AS annual_salary,
+    hire_date,
+    CASE WHEN DATEDIFF('day', hire_date, CURRENT_DATE) < 365 THEN 'New Hire'
+        WHEN DATEDIFF('day', hire_date, CURRENT_DATE) > 365 * 5 THEN 'Senior' -- obviously would need to use a more elegant calc for leap_years
+        ELSE  'Mid-level' END AS experience_level, 
+    DATEDIFF('day', hire_date, CURRENT_DATE) AS tenure_days,
+    SPLIT_PART(location, '-', 1) AS state,
+    SPLIT_PART(location, '-', 2) AS country,
+    CASE WHEN SALARY > 10000 THEN 'True'
+        ELSE 'False' END AS bonus_eligibility,
+    CASE WHEN DATEDIFF('day', hire_date, CURRENT_DATE) > 365 * 3 THEN 'True'
+        ELSE 'False' END AS high_potential_flag       
+FROM EMPLOYEE_RAW
+
+
+SELECT * FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED LIMIT 15;
+
+
+-- Data analysis
+
+-- 1. Employee Count by Department
+SELECT department, COUNT(employee_id)
+FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+GROUP BY department;
+
+-- 2. Provide count of employees by country
+SELECT country, COUNT(employee_id)
+FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+GROUP BY country;
+
+
+-- 3. Extract employees who were hired within 12 months
+SELECT employee_id, hire_date
+FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+WHERE DATEDIFF('month', hire_date, CURRENT_DATE) <= 12
+LIMIT 15;
+
+-- 4. Extract the top 10% of employees by salary
+WITH ranked_employees AS (
+  SELECT *,
+         NTILE(10) OVER (ORDER BY annual_salary DESC) AS decile
+  FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+)
+SELECT employee_id, annual_salary
+FROM ranked_employees
+WHERE decile = 1
+ORDER BY annual_salary DESC;
+
+-- alt using percent_rank()
+WITH ranked_employees AS (
+  SELECT *,
+         PERCENT_RANK() OVER (ORDER BY annual_salary DESC) AS pr
+  FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+)
+SELECT employee_id, annual_salary
+FROM ranked_employees
+WHERE pr <= 0.10;
+
+
+-- 5. Calculate the total salary expense per department for each year.
+SELECT department, SUM(annual_salary)
+FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+GROUP BY department;
+
+
+-- 6. Determine how many employees with 5+ years with company
+SELECT COUNT(employee_id)
+FROM TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+WHERE DATEDIFF('year', hire_date, CURRENT_DATE) >= 5;
+
+
+-- WHERE hire_date > '2024-07-30'
+-- WHERE DEPARTMENT = 'Engineering'
+--     AND SALARY > 5000
+-- LIMIT 15;
+
+-- gpt suggests breaking up into base and transformed CTEs - syntax does not work in Snowflake though. INSERT cannot come after a CTE
+
+-- INSERT INTO TRANSFORMED_DATA.EMPLOYEE_TRANSFORMED
+-- WITH base_employee_data AS (
+--     SELECT 
+--         employee_id, 
+--         first_name, 
+--         last_name, 
+--         department, 
+--         hire_date, 
+--         salary, 
+--         location,
+--         DATEDIFF('day', hire_date, CURRENT_DATE) AS tenure_days
+--     FROM EMPLOYEE_RAW
+-- ),
+
+-- transformed_employee_data AS (
+--     SELECT 
+--         employee_id,
+--         CONCAT(first_name, ' ', last_name) AS full_name, 
+--         department,
+--         hire_date,
+--         (salary * 12)::FLOAT AS annual_salary, 
+--         tenure_days,
+        
+--         CASE 
+--             WHEN tenure_days < 365 THEN 'New Hire'
+--             WHEN tenure_days > 365 * 5 THEN 'Senior'
+--             ELSE 'Mid-level' 
+--         END AS experience_level,
+
+--         SPLIT_PART(location, '-', 1) AS state,
+--         SPLIT_PART(location, '-', 2) AS country,
+
+--         CASE 
+--             WHEN salary > 10000 THEN 'True'
+--             ELSE 'False' 
+--         END AS bonus_eligibility,
+
+--         CASE 
+--             WHEN tenure_days > 365 * 3 THEN 'True'
+--             ELSE 'False' 
+--         END AS high_potential_flag
+
+--     FROM base_employee_data
+-- )
+-- SELECT * FROM transformed_employee_data;
+
+

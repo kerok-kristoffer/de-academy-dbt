@@ -1,0 +1,66 @@
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+
+
+CREATE OR REPLACE DATABASE timetravel_db;
+CREATE OR REPLACE SCHEMA timetravel_data;
+
+CREATE OR REPLACE TABLE timetravel_data.employees(
+    employee_id string,
+    first_name string,
+    last_name string,
+    department string,
+    salary float,
+    hire_date date
+);
+INSERT INTO TIMETRAVEL_DB.TIMETRAVEL_DATA.EMPLOYEES VALUES 
+('E1', 'John', 'Doe', 'Finance', 75000.50, '2020-01-15'), 
+('E2', 'Jane', 'Smith', 'HR', 68000.00, '2018-03-20'), 
+('E3', 'Alice', 'Johnson', 'IT', 92000.75, '2019-07-10'),
+ ('E4', 'Bob', 'Williams', 'Sales', 58000.25, '2021-06-01'), 
+('E5', 'Charlie', 'Brown', 'Marketing', 72000.00, '2022-04-22'), 
+('E6', 'Emily', 'Davis', 'IT', 89000.10, '2017-11-12'), 
+('E7', 'Frank', 'Miller', 'Finance', 83000.30, '2016-09-05'), 
+('E8', 'Grace', 'Taylor', 'Sales', 61000.45, '2023-02-11'),
+ ('E9', 'Hannah', 'Moore', 'HR', 67000.80, '2020-05-18'), 
+('E10', 'Jack', 'White', 'Marketing', 70000.90, '2019-12-25');
+
+SELECT * FROM timetravel_data.employees;
+
+DELETE 
+FROM timetravel_data.employees
+WHERE employee_id in ('E2', 'E7');
+
+-- 7
+SELECT *
+FROM snowflake.account_usage.query_history
+WHERE QUERY_TEXT LIKE '%DELETE%FROM%timetravel_data.employees%'
+
+
+-- 8
+SELECT *
+FROM timetravel_data.employees
+BEFORE (STATEMENT => '01bdd7ac-0003-37da-0000-0008fdfaada9') -- this would need to be updated if run again. 
+                                                                -- ideally use id from previous statement
+EXCEPT
+
+SELECT *
+FROM timetravel_data.employees;
+
+
+-- 9
+INSERT INTO timetravel_data.employees 
+SELECT * 
+FROM (
+    SELECT *
+    FROM timetravel_data.employees
+    BEFORE (STATEMENT => '01bdd7ac-0003-37da-0000-0008fdfaada9')
+    
+    EXCEPT
+    
+    SELECT *
+    FROM timetravel_data.employees
+)
+
+-- 10
+SELECT * FROM timetravel_data.employees;

@@ -1,0 +1,70 @@
+
+
+USE ROLE ACCOUNTADMIN;
+
+ 
+
+USE WAREHOUSE COMPUTE_WH;
+
+ 
+CREATE OR REPLACE DATABASE GLUEDB;
+
+
+CREATE OR REPLACE STORAGE INTEGRATION GLUE_S3_INT
+  TYPE = EXTERNAL_STAGE
+  STORAGE_PROVIDER = 'S3'
+  ENABLED = TRUE
+  STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::644171584843:role/kerok-glue-project-snowflake-role'
+  STORAGE_ALLOWED_LOCATIONS = ('s3://kerok-glue-project-bucket/data/');
+
+
+  
+DESC INTEGRATION GLUE_S3_INT;
+
+
+CREATE OR REPLACE STAGE GLUEDB.PUBLIC.GLUE_S3_STAGE
+STORAGE_INTEGRATION = GLUE_S3_INT
+URL= 's3://kerok-glue-project-bucket/data/';
+
+
+ls @GLUEDB.PUBLIC.GLUE_S3_STAGE;
+
+CREATE OR REPLACE TABLE GLUEDB.PUBLIC.COUNTRY_DETAILS_CP
+(
+DATA VARIANT
+);
+
+-- added models and ran build in DBT
+
+SELECT * FROM GLUEDB.RAW.COUNTRY_DETAILS_RAW;
+
+-- addded transform model and ran build in DBT
+
+SELECT * FROM GLUEDB.TRANSFORM.COUNTRY_DETAILS_TRANSFORM -- WHERE COUNTRY_DRIVING_LANE = 'left' AND COUNTRY_OFFICIAL_NAME LIKE '%Thailand%';
+
+-- mart creation
+
+SELECT DISTINCT COUNTRY_CONTINENT_NAME FROM GLUEDB.TRANSFORM.COUNTRY_DETAILS_TRANSFORM;
+
+-- added mart models and built in DBT
+
+SELECT * FROM GLUEDB.MART.COUNTRY_DETAILS_AFRICA;
+
+
+-- dbt job creation
+
+CREATE OR REPLACE DATABASE GLUEDB_PRODUCTION;
+
+    -- ran the PROD job 'dbt build --select path:glue-project/'
+
+SELECT 
+    table_name, 
+    row_count
+FROM 
+    information_schema.tables 
+WHERE 
+    table_catalog = 'GLUEDB_PRODUCTION'
+    AND table_type = 'BASE TABLE'
+ORDER BY 
+    table_name;
+

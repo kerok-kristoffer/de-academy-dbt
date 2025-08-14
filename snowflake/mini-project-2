@@ -1,0 +1,111 @@
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+
+CREATE OR REPLACE DATABASE CUSTOMER_DATA;
+CREATE OR REPLACE SCHEMA RAW_DATA;
+CREATE OR REPLACE SCHEMA FLATTEN_DATA;
+
+CREATE OR REPLACE TABLE RAW_DATA.CUSTOMER_RAW(
+    json_data variant
+);
+
+CREATE OR REPLACE TABLE FLATTEN_DATA.CUSTOMER_FLATTEN(
+  customer_id int,
+  name string,
+  email string,
+  region string,
+  country string,
+  productname string,
+  productbrand string,
+  quantity int,
+  priceperunit float,
+  totalsales float,
+  purchasemode string,
+  modeofpayment string,
+  purchasedate date
+);
+
+CREATE OR REPLACE STAGE RAW_DATA.CUSTOMER_STAGE;
+-- uploaded json file to stage
+
+LIST @RAW_DATA.CUSTOMER_STAGE;
+
+COPY INTO RAW_DATA.CUSTOMER_RAW
+FROM @RAW_DATA.CUSTOMER_STAGE
+FILE_FORMAT = (TYPE = 'JSON');
+
+SELECT * FROM RAW_DATA.CUSTOMER_RAW LIMIT 5;
+SELECT json_data:customerid, json_data:name, json_data:email, json_data:region, json_data:country, json_data:productname FROM RAW_DATA.CUSTOMER_RAW LIMIT 5;
+
+INSERT INTO FLATTEN_DATA.CUSTOMER_FLATTEN 
+SELECT 
+    json_data:customerid::int, 
+    json_data:name::string, 
+    json_data:email::string, 
+    json_data:region::string, 
+    json_data:country::string, 
+    json_data:productname::string,
+    json_data:productbrand::string,
+    json_data:quantity::int,
+    json_data:priceperunit::float,
+    json_data:totalsales::float,
+    json_data:purchasemode::string,
+    json_data:modeofpayment::string,
+    json_data:purchasedate::date
+FROM RAW_DATA.CUSTOMER_RAW
+-- json_data:nested:value -- if nested data
+
+SELECT * FROM FLATTEN_DATA.CUSTOMER_FLATTEN LIMIT 5;
+
+-- 1 and 2
+SELECT region, SUM(totalsales) AS "total_sales"
+FROM FLATTEN_DATA.CUSTOMER_FLATTEN
+GROUP BY region
+ORDER BY SUM(totalsales) DESC;
+
+-- 3 and 4
+SELECT productbrand, SUM(totalsales) AS "total_sales"
+FROM FLATTEN_DATA.CUSTOMER_FLATTEN
+GROUP BY productbrand
+ORDER BY SUM(totalsales);
+
+-- 5
+SELECT name, totalsales
+FROM FLATTEN_DATA.CUSTOMER_FLATTEN
+ORDER BY totalsales DESC
+LIMIT 1;
+
+-- 6
+SELECT productname, productbrand, priceperunit
+FROM FLATTEN_DATA.CUSTOMER_FLATTEN
+ORDER BY priceperunit
+LIMIT 1;
+
+-- 7
+SELECT productname, SUM(totalsales) AS "total_sales"
+FROM FLATTEN_DATA.CUSTOMER_FLATTEN
+GROUP BY productname
+ORDER BY SUM(totalsales) DESC
+LIMIT 5;
+
+-- 8
+SELECT country, SUM(totalsales) AS "total_sales"
+FROM FLATTEN_DATA.CUSTOMER_FLATTEN
+GROUP BY country
+ORDER BY SUM(totalsales)
+LIMIT 5;
+
+
+
+    
+    
+
+
+
+
+
+
+
+
+
+

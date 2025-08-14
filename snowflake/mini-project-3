@@ -1,0 +1,105 @@
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+
+CREATE OR REPLACE DATABASE SALES_DATA;
+CREATE OR REPLACE SCHEMA RAW_DATA;
+CREATE OR REPLACE SCHEMA FLATTEN_DATA;
+
+CREATE OR REPLACE TABLE RAW_DATA.SALES_RAW( 
+    data variant
+)
+
+CREATE OR REPLACE TABLE FLATTEN_DATA.SALES_FLATTEN(
+    company string,
+    sales_period string,
+    total_revenue float,
+    total_units_sold float,
+    region string,
+    total_sales float,
+    product string,
+    units_sold float,
+    revenue float
+);
+
+CREATE OR REPLACE STAGE RAW_DATA.SALES_STAGE;
+
+LIST @RAW_DATA.SALES_STAGE;
+
+COPY INTO RAW_DATA.SALES_RAW
+FROM @RAW_DATA.SALES_STAGE
+FILE_FORMAT = (TYPE = 'JSON');
+
+SELECT * FROM RAW_DATA.SALES_RAW LIMIT 5;
+
+INSERT INTO FLATTEN_DATA.SALES_FLATTEN
+SELECT
+    company.key::string AS company_name,
+    company.value:sales_period::string AS sales_period,
+    company.value:total_revenue::float AS total_revenue,
+    company.value:total_units_sold::int AS total_units_sold,
+    -- company.value:regions::string,
+    region.key::string AS region_name,
+    -- region.value:products,
+    region.value:total_sales::float AS total_sales,
+    product.key::string AS product_name,
+    product.value:units_sold::int AS product_units_sold,
+    product.value:revenue::float AS product_revenue,
+FROM RAW_DATA.SALES_RAW,
+LATERAL FLATTEN(input => data:companies) AS company,
+LATERAL FLATTEN(input => company.value:regions) AS region,
+LATERAL FLATTEN(input => region.value:products) AS product;
+
+
+SELECT * FROM FLATTEN_DATA.SALES_FLATTEN LIMIT 5;
+
+
+-- 1, 2
+SELECT company, SUM(revenue)
+FROM FLATTEN_DATA.SALES_FLATTEN
+GROUP BY company
+ORDER BY SUM(revenue) DESC
+LIMIT 3;
+
+-- 3
+
+SELECT region, SUM(units_sold)
+FROM FLATTEN_DATA.SALES_FLATTEN
+GROUP BY region
+ORDER BY SUM(units_sold)
+LIMIT 2;
+
+-- 4
+SELECT product, SUM(revenue)
+FROM FLATTEN_DATA.SALES_FLATTEN
+GROUP BY product
+ORDER BY SUM(revenue) DESC
+LIMIT 1;
+
+-- 5
+SELECT product, SUM(units_sold)
+FROM FLATTEN_DATA.SALES_FLATTEN
+GROUP BY product
+ORDER BY SUM(units_sold)
+LIMIT 5;
+
+-- 6
+SELECT region, SUM(units_sold) AS laptops_sold
+FROM FLATTEN_DATA.SALES_FLATTEN
+WHERE product = 'laptop'
+GROUP BY region
+ORDER BY SUM(units_sold) DESC
+
+-- 7
+SELECT company, region, SUM(revenue) AS smartphone_revenue_by_company_and_region
+FROM FLATTEN_DATA.SALES_FLATTEN
+WHERE product = 'smartphone'
+GROUP BY company, region
+ORDER BY SUM(revenue)
+LIMIT 3;
+
+
+
+
+
+
+

@@ -59,3 +59,8 @@ vars:
   target_db: GLUEDB
   target_schema: PUBLIC
   stage_name: GLUEDB.PUBLIC.GLUE_S3_STAGE
+  scd2_wrk_schema: BRONZE
+  scd2_file_format_json: SCD2_DB.BRONZE.MY_CSV_FORMAT
+  scd2_purge_status: FALSE
+  scd2_stage_name: SCD2_DB.BRONZE.SCD2_S3_STAGE
+  scd2_rawhist_db: SCD2_DB

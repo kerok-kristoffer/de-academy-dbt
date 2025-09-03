@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: walmart_date_dim
+    config:
+      database: WALMART_DB
+      schema: SILVER
+      materialized: table

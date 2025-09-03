@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: walmart_raw
+    database: WALMART_DB
+    schema: BRONZE
+    tables:
+      - name: DEPARTMENT_COPY
+      - name: STORES_COPY
+      - name: FACT_COPY

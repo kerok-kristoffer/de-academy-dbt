@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: walmart_date_dim
+    columns:
+      - name: date_id
+        tests: [not_null]
+        
+  - name: walmart_store_dim
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: dept_id
+        tests: [not_null]
+      - name: store_type
+      - name: store_size
+      - name: insert_date
+        tests: [not_null]
+      - name: update_date
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ['store_id','dept_id']
+
+  - name: walmart_fact_table
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ['date_id','store_id','dept_id','vrsn_start_date']
+    columns:
+      - name: date_id
+        tests: [not_null]
+      - name: store_id
+        tests: [not_null]
+      - name: dept_id
+        tests: [not_null]
+sources:
+  - name: walmart_silver
+    database: WALMART_DB
+    schema: SILVER
+    tables:
+      - name: DEPARTMENT_COPY
+      - name: STORES_RAW_COPY
+      - name: FACT_RAW_COPY

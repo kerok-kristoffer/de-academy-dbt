@@ -1,0 +1,23 @@
+models:
+  - name: walmart_department
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: department_id
+        tests: [not_null]
+
+  - name: walmart_stores
+    columns:
+      - name: store_id
+        tests: [not_null]
+        
+  - name: walmart_fact
+
+sources:
+  - name: walmart_raw
+    database: WALMART_DB
+    schema: BRONZE
+    tables:
+      - name: DEPARTMENT_COPY
+      - name: STORES_COPY
+      - name: FACT_COPY

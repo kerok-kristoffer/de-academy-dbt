@@ -1,10 +1,12 @@
+
+-- walmart_fact.sql
 {{ 
     config({ "materialized":'table',
     "transient":true,
     "alias":'FACT_RAW_COPY',
     "pre_hook": macros_copy_walmart_fact_csv('FACT_COPY', 'fact.csv'),
     "database": 'WALMART_DB',
-    "schema": 'BRONZE'
+    "schema": 'SILVER'
     })
 }}
 

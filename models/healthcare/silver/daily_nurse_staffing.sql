@@ -1,0 +1,2 @@
+-- ensuring source access by running Preview on query below
+-- select * from {{ source('bronze','pbj_daily_nurse_staffing_raw') }}

@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: HEALTHCARE_DB
+    schema: BRONZE
+    loader: copy_into
+    loaded_at_field: _ingested_at
+    tables:
+      - name: pbj_daily_nurse_staffing_raw
+      - name: providerinfo_raw

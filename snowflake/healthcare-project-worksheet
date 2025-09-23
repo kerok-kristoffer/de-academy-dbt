@@ -1,0 +1,31 @@
+CREATE OR REPLACE DATABASE HEALTHCARE_DB;
+CREATE OR REPLACE SCHEMA BRONZE;
+
+CREATE OR REPLACE SCHEMA SILVER;
+CREATE OR REPLACE SCHEMA GOLD;
+
+-- 1) Storage integration
+create or replace storage integration s3_int
+  type = external_stage
+  storage_provider = s3
+  enabled = true
+  storage_aws_role_arn = 'arn:aws:iam::644171584843:role/kerok_healthcare_role'
+  storage_allowed_locations = ('s3://kerok-healthcare-landing/drive_raw/');
+
+DESC INTEGRATION s3_int;
+  
+-- 2) File format
+create or replace file format ff_csv
+  type = csv
+  skip_header = 1
+  field_optionally_enclosed_by = '"'
+  null_if = ('','NA','N/A','NULL');
+
+-- 3) External stage (points to S3 landing)
+create or replace stage HEALTHCARE_DB.BRONZE.gdrive_landing_stage
+  url = 's3://kerok-healthcare-landing/drive_raw/'
+  storage_integration = s3_int
+  file_format = ff_csv;
+
+
+ls @HEALTHCARE_DB.BRONZE.gdrive_landing_stage;
